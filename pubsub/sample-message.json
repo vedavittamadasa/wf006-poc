@@ -1,0 +1,60 @@
+{
+  "test_cases": {
+    "1_approved_contact": {
+      "description": "Standard valid contact who has given consent and is not on the DND registry. Should be APPROVED and persisted in Cloud SQL.",
+      "payload": {
+        "Contact_ID": "CNT-2026-00101",
+        "name": "Radha Raman Das",
+        "phone": "+919876543210",
+        "email": "radha.raman@example.org",
+        "source": "CRM",
+        "owner": "seva-outreach-team",
+        "consent_status": "GRANTED",
+        "dnd_status": false
+      }
+    },
+    "2_blocked_dnd_by_flag": {
+      "description": "Valid contact payload but dnd_status is explicitly true. Must be BLOCKED and recorded in audit log only.",
+      "payload": {
+        "Contact_ID": "CNT-2026-00102",
+        "name": "Ananya Sharma",
+        "phone": "+919811122233",
+        "email": "ananya.sharma@example.com",
+        "source": "CSV",
+        "owner": "donor-relations",
+        "consent_status": "REVOKED",
+        "dnd_status": true
+      }
+    },
+    "3_blocked_dnd_by_suppression_registry": {
+      "description": "Payload has dnd_status=false, but the phone number matches the national/internal DND suppression list (+919999999999). DND service must catch and BLOCK it.",
+      "payload": {
+        "Contact_ID": "CNT-2026-00103",
+        "name": "Kishore Kumar",
+        "phone": "+919999999999",
+        "email": "kkumar@example.net",
+        "source": "WhatsApp",
+        "owner": "seva-outreach-team",
+        "consent_status": "PENDING",
+        "dnd_status": false
+      }
+    },
+    "4_invalid_contact_missing_fields": {
+      "description": "Fails validation because mandatory fields 'source' and 'owner' are missing. Should fail fast in the Validator step.",
+      "payload": {
+        "Contact_ID": "CNT-2026-00104",
+        "name": "Incomplete Record",
+        "phone": "+919844455566",
+        "email": "incomplete@example.com"
+      }
+    },
+    "5_pubsub_wrapped_sample": {
+      "description": "Format when received from Pub/Sub push subscription or Eventarc trigger (base64 encoded message data).",
+      "message": {
+        "data": "eyJDb250YWN0X0lEIjogIkNOVC0yMDI2LTAwMTA1IiwgIm5hbWUiOiAiTW9yYXJpIEJhcHUiLCAicGhvbmUiOiAiKzkxOTg3NzcwMDAwMSIsICJlbWFpbCI6ICJtb3JhcmlAZXhhbXBsZS5vcmciLCAic291cmNlIjogIkRDQyIsICJvd25lciI6ICJmZXN0aXZhbC1jb21taXR0ZWUiLCAiY29uc2VudF9zdGF0dXMiOiAiR1JBTlRFRCIsICJkbmRfc3RhdHVzIjogZmFsc2V9",
+        "messageId": "109876543210123",
+        "publishTime": "2026-10-02T12:00:00.000Z"
+      }
+    }
+  }
+}

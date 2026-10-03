@@ -1,0 +1,129 @@
+# =============================================================================
+# WF-006: Google Cloud Workflows Orchestration Definition
+# Orchestrates Ingestion -> Validation -> DND Gate -> Persistence / Audit
+# =============================================================================
+
+main:
+  params: [args]
+  steps:
+    # -------------------------------------------------------------------------
+    # 1. Initialize & extract contact payload
+    # -------------------------------------------------------------------------
+    - init_vars:
+        assign:
+          - validator_url: '${default(map.get(args, "validator_url"), sys.get_env("VALIDATOR_SERVICE_URL"))}'
+          - dnd_url: '${default(map.get(args, "dnd_url"), sys.get_env("DND_SERVICE_URL"))}'
+          # Extract contact from direct payload or base64-encoded Pub/Sub message
+          - contact: '${default(map.get(args, "contact"), args)}'
+
+    # -------------------------------------------------------------------------
+    # 2. Step 1: Validate Schema & Business Rules via Cloud Run Validator
+    # -------------------------------------------------------------------------
+    - call_validator:
+        try:
+          call: http.post
+          args:
+            url: '${validator_url + "/validate"}'
+            headers:
+              Content-Type: "application/json"
+            body: '${contact}'
+          result: validation_res
+        retry:
+          predicate: '${http.default_retry_predicate}'
+          max_retries: 3
+          backoff:
+            initial_delay: 2
+            max_delay: 10
+            multiplier: 2
+        except:
+          as: val_error
+          steps:
+            - return_val_failure:
+                return:
+                  status: "FAILED"
+                  stage: "VALIDATION"
+                  contact_id: '${default(map.get(contact, "Contact_ID"), "UNKNOWN")}'
+                  error: '${val_error.message}'
+
+    # -------------------------------------------------------------------------
+    # 3. Step 2: Query Dedicated DND Service for Governance / Opt-Out Check
+    # -------------------------------------------------------------------------
+    - call_dnd_service:
+        try:
+          call: http.post
+          args:
+            url: '${dnd_url + "/check-dnd"}'
+            headers:
+              Content-Type: "application/json"
+            body:
+              Contact_ID: '${contact.Contact_ID}'
+              phone: '${default(map.get(contact, "phone"), null)}'
+              email: '${default(map.get(contact, "email"), null)}'
+              consent_status: '${default(map.get(contact, "consent_status"), "PENDING")}'
+              dnd_status: '${default(map.get(contact, "dnd_status"), false)}'
+          result: dnd_res
+        except:
+          as: dnd_error
+          steps:
+            - return_dnd_err:
+                return:
+                  status: "FAILED"
+                  stage: "DND_CHECK"
+                  contact_id: '${contact.Contact_ID}'
+                  error: '${dnd_error.message}'
+
+    # -------------------------------------------------------------------------
+    # 4. Step 3: Branching Decision Logic
+    # -------------------------------------------------------------------------
+    - evaluate_governance_decision:
+        switch:
+          - condition: '${dnd_res.body.action == "BLOCK" or dnd_res.body.is_dnd == true}'
+            next: block_contact_path
+          - condition: '${dnd_res.body.action == "ALLOW" and dnd_res.body.is_dnd == false}'
+            next: persist_approved_contact_path
+
+    # -------------------------------------------------------------------------
+    # 5. Branch A: Blocked Contact Path (DND = TRUE)
+    # Contact must NOT proceed to master table or outreach path. Record in Audit Log.
+    # -------------------------------------------------------------------------
+    - block_contact_path:
+        call: http.post
+        args:
+          url: '${validator_url + "/audit-log"}'
+          headers:
+            Content-Type: "application/json"
+          body:
+            contact_id: '${contact.Contact_ID}'
+            decision: "BLOCKED"
+            reason: '${dnd_res.body.reason}'
+            details:
+              source: '${contact.source}'
+              owner: '${contact.owner}'
+              phone: '${default(map.get(contact, "phone"), null)}'
+              email: '${default(map.get(contact, "email"), null)}'
+        result: audit_res
+    - return_blocked_outcome:
+        return:
+          status: "BLOCKED"
+          contact_id: '${contact.Contact_ID}'
+          reason: '${dnd_res.body.reason}'
+          action_taken: "Excluded from master outreach table; logged in audit log."
+
+    # -------------------------------------------------------------------------
+    # 6. Branch B: Approved Contact Path (DND = FALSE)
+    # Persist in Cloud SQL PostgreSQL master table.
+    # -------------------------------------------------------------------------
+    - persist_approved_contact_path:
+        call: http.post
+        args:
+          url: '${validator_url + "/persist"}'
+          headers:
+            Content-Type: "application/json"
+          body: '${validation_res.body.contact}'
+        result: persist_res
+    - return_approved_outcome:
+        return:
+          status: "APPROVED"
+          contact_id: '${contact.Contact_ID}'
+          persistence_status: '${persist_res.body.status}'
+          message: "Contact validated, cleared DND, and written to Cloud SQL master."
