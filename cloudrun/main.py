@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import base64
 import sqlite3
 import logging
 from datetime import datetime, timezone
@@ -658,5 +659,51 @@ def demo_api_gateway_contract():
         "openapi_spec_url": "/openapi.json",
         "explanation": "This Swagger UI provides the exact OpenAPI 3.0 contract uploaded to Google Cloud API Gateway."
     }
+
+
+class PubSubInnerMessage(BaseModel):
+    data: str
+    messageId: str
+    publishTime: Optional[str] = None
+    attributes: Optional[Dict[str, Any]] = None
+
+
+class PubSubPushEnvelope(BaseModel):
+    message: PubSubInnerMessage
+    subscription: Optional[str] = None
+
+
+@app.post("/pubsub/push", tags=["Live POC Integrations & Verification"])
+def handle_pubsub_push(envelope: PubSubPushEnvelope):
+    """
+    Automatic Pub/Sub Push Webhook:
+    1. Receives message from Google Cloud Pub/Sub
+    2. Decodes base64 payload
+    3. Triggers the end-to-end orchestration pipeline:
+       Schema Validation -> DND Check -> Persist to Cloud SQL / Audit Log
+    4. Database commit triggers Datastream CDC -> BigQuery sync automatically!
+    """
+    try:
+        raw_bytes = base64.b64decode(envelope.message.data)
+        payload_dict = json.loads(raw_bytes.decode("utf-8"))
+        logger.info(f"Received Pub/Sub Push for messageId={envelope.message.messageId}: {payload_dict}")
+        
+        # Extract contact record
+        contact_data = payload_dict.get("contact", payload_dict)
+        contact = ContactRecord(**contact_data)
+        
+        # Execute workflow pipeline
+        res = demo_trigger_workflow(WorkflowTriggerRequest(contact=contact))
+        logger.info(f"Pub/Sub message {envelope.message.messageId} successfully processed: {res}")
+        return {
+            "status": "PROCESSED",
+            "message_id": envelope.message.messageId,
+            "pipeline": "Pub/Sub -> Workflows -> Cloud SQL -> Datastream -> BigQuery",
+            "result": res
+        }
+    except Exception as exc:
+        logger.error(f"Error processing Pub/Sub push message: {exc}")
+        return {"status": "ERROR", "error": str(exc)}
+
 
 
