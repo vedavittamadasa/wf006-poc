@@ -462,17 +462,32 @@ Open these two tabs in your browser side-by-side:
 
 ## 4. Section 2: Live Orchestration with Google Cloud Workflows
 
-Now switch to your **Cloud Shell** terminal to show how **Google Cloud Workflows (`wf006-orchestrator`)** orchestrates both microservices without writing custom cron jobs or glue code.
+Now run **Google Cloud Workflows (`wf006-orchestrator`)** to show how it coordinates both microservices and automatically branches based on the DND decision.
+
+> [!TIP]
+> **Windows PowerShell vs Linux / Cloud Shell:**  
+> On Windows PowerShell, single quotes `'...'` in inline JSON cause parse errors.  
+> To prevent any quoting issues, **use the `@payload-approved.json` file approach** shown below! It works 100% reliably on Windows, Mac, and Linux.
 
 ---
 
 ### Test Run 1: Approved Devotee (Full Persistence Path)
-Run this command in Cloud Shell:
 
+#### Option A: Using the Payload File (Recommended for Windows PowerShell / CMD):
+```powershell
+gcloud workflows run wf006-orchestrator --location=us-central1 --data=@payload-approved.json
+```
+
+#### Option B: Inline Command for Linux / Cloud Shell:
 ```bash
 gcloud workflows run wf006-orchestrator \
     --location=us-central1 \
     --data='{"contact":{"Contact_ID":"DEMO-001-APPROVED","name":"Radha Raman Das","phone":"+919876500001","email":"radha.raman@example.org","source":"CRM","owner":"seva-outreach-team","consent_status":"GRANTED","dnd_status":false}}'
+```
+
+#### Option C: Inline Command for Windows PowerShell:
+```powershell
+gcloud workflows run wf006-orchestrator --location=us-central1 --% --data="{\"contact\":{\"Contact_ID\":\"DEMO-001-APPROVED\",\"name\":\"Radha Raman Das\",\"phone\":\"+919876500001\",\"email\":\"radha.raman@example.org\",\"source\":\"CRM\",\"owner\":\"seva-outreach-team\",\"consent_status\":\"GRANTED\",\"dnd_status\":false}}"
 ```
 
 - **Output on Screen:**
@@ -489,12 +504,22 @@ gcloud workflows run wf006-orchestrator \
 ---
 
 ### Test Run 2: Blocked Devotee (Audit Log Only Path)
-Run this command in Cloud Shell:
 
+#### Option A: Using the Payload File (Recommended for Windows PowerShell / CMD):
+```powershell
+gcloud workflows run wf006-orchestrator --location=us-central1 --data=@payload-blocked.json
+```
+
+#### Option B: Inline Command for Linux / Cloud Shell:
 ```bash
 gcloud workflows run wf006-orchestrator \
     --location=us-central1 \
     --data='{"contact":{"Contact_ID":"DEMO-002-BLOCKED","name":"Kishore Kumar","phone":"+919999999999","email":"kkumar@example.net","source":"WhatsApp","owner":"seva-outreach-team","consent_status":"PENDING","dnd_status":false}}'
+```
+
+#### Option C: Inline Command for Windows PowerShell:
+```powershell
+gcloud workflows run wf006-orchestrator --location=us-central1 --% --data="{\"contact\":{\"Contact_ID\":\"DEMO-002-BLOCKED\",\"name\":\"Kishore Kumar\",\"phone\":\"+919999999999\",\"email\":\"kkumar@example.net\",\"source\":\"WhatsApp\",\"owner\":\"seva-outreach-team\",\"consent_status\":\"PENDING\",\"dnd_status\":false}}"
 ```
 
 - **Output on Screen:**

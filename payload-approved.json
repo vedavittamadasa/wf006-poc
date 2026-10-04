@@ -1,0 +1,12 @@
+{
+  "contact": {
+    "Contact_ID": "DEMO-001-APPROVED",
+    "name": "Radha Raman Das",
+    "phone": "+919876500001",
+    "email": "radha.raman@example.org",
+    "source": "CRM",
+    "owner": "seva-outreach-team",
+    "consent_status": "GRANTED",
+    "dnd_status": false
+  }
+}

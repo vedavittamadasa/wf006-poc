@@ -1,0 +1,12 @@
+{
+  "contact": {
+    "Contact_ID": "DEMO-002-BLOCKED",
+    "name": "Kishore Kumar",
+    "phone": "+919999999999",
+    "email": "kkumar@example.net",
+    "source": "WhatsApp",
+    "owner": "seva-outreach-team",
+    "consent_status": "PENDING",
+    "dnd_status": false
+  }
+}
