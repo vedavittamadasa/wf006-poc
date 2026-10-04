@@ -104,9 +104,14 @@ For every step, follow this 3-part formula:
 ### Step 1.3: Asynchronous Pub/Sub Ingestion (`POST /demo/publish-pubsub`)
 
 * **What you are doing:** Publishing a devotee festival registration into Google Cloud Pub/Sub topic `wf006-contact-topic`.
-* **Why you are doing it:** Shows event-driven decoupling. When 50,000 devotees register during Janmashtami, Pub/Sub buffers the traffic so the master database never crashes.
+* **Why you are doing it:** Shows the **entire automated event-driven pipeline**:
+  1. The event enters the GCP Pub/Sub topic `wf006-contact-topic` in under 50ms.
+  2. The message is buffered in `wf006-contact-sub` (where you can see it live when clicking **Pull** in GCP Console).
+  3. Google Cloud Pub/Sub **automatically triggers the subscriber webhook** (`wf006-contact-auto-sub`).
+  4. The workflow validates the schema, queries the DND Governance gate, and **persists to Cloud SQL PostgreSQL**.
+  5. The PostgreSQL WAL commit triggers **Datastream CDC**, replicating the row to **BigQuery** in under 60 seconds!
 * **🗣️ What to say before clicking:**
-  > *"In high-traffic events, external tools do not write directly to the database. They publish to Google Cloud Pub/Sub. Watch how the event is accepted immediately and assigned a Pub/Sub Message ID."*
+  > *"Watch this end-to-end automation. In one single click, an incoming WhatsApp lead enters Google Cloud Pub/Sub. From there, Pub/Sub automatically triggers our subscriber, executes the DND governance check, writes to Cloud SQL PostgreSQL, and Datastream streams it into BigQuery without any human intervention!"*
 * **Action:**
   1. Click `POST /demo/publish-pubsub` ➔ **Try it out**.
   2. Paste this payload:
@@ -129,12 +134,16 @@ For every step, follow this 3-part formula:
     "status": "PUBLISHED",
     "topic": "projects/project-225be79a-d654-49e1-950/topics/wf006-contact-topic",
     "subscription": "projects/project-225be79a-d654-49e1-950/subscriptions/wf006-contact-sub",
-    "message_id": "pubsub-msg-a91c8f34b21d",
+    "message_id": "21325756034355362",
     "publish_time": "2026-10-05T00:31:00.000Z",
+    "gcp_native_publish": true,
     "explanation": "Event accepted at the ingestion edge and queued in GCP Pub/Sub buffer without blocking transactional database."
   }
   ```
-* **🔍 Point out on screen:** Show the `message_id` and the subscription name `wf006-contact-sub`.
+* **🔍 How to verify the automatic flow across the entire system:**
+  1. **In Google Cloud Pub/Sub Console (`wf006-contact-sub`)**: Click **Messages ➔ Pull** ➔ See the message buffered in the queue!
+  2. **In Swagger (`GET /contacts`)**: Click **Execute** ➔ See `CNT-FESTIVAL-2026-01` (`Gauranga Dasa`) automatically persisted in Cloud SQL PostgreSQL!
+  3. **In Swagger (`GET /demo/bigquery-synced-contacts`)**: See the row synchronized in BigQuery with its Datastream CDC UUID!
 
 ---
 
