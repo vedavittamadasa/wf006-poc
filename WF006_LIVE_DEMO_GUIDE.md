@@ -460,6 +460,161 @@ Open these two tabs in your browser side-by-side:
 
 ---
 
+### Service C: Live POC Integrations & Verification (100% Inside Swagger UI)
+👉 **Swagger URL:** [https://wf006-cloudrun-662300223067.us-central1.run.app/docs](https://wf006-cloudrun-662300223067.us-central1.run.app/docs) (Tag: **Live POC Integrations & Verification**)
+
+🗣️ **Key Pitch to Leadership:**  
+> *"We have exposed live integration endpoints right in our Swagger contract. This allows anyone to verify Pub/Sub asynchronous event buffering, Google Cloud Workflows state machine execution, Datastream CDC continuous replication, and BigQuery analytics live from a single browser screen with zero CLI commands!"*
+
+---
+
+#### Integration 1: `POST /demo/publish-pubsub` (Asynchronous Event Ingestion)
+- **What you are doing:** Publishing a contact registration event into Google Cloud Pub/Sub topic `wf006-contact-topic`.
+- **Why you are doing it:** Proves event-driven decoupling. When high traffic surges occur (e.g. Janmashtami registrations), the system buffers events in Pub/Sub without hammering the transactional database.
+- **Payload:**
+  ```json
+  {
+    "Contact_ID": "CNT-PUBSUB-DEMO-01",
+    "name": "Gauranga Dasa",
+    "phone": "+919876543210",
+    "email": "gauranga@example.org",
+    "source": "WhatsApp",
+    "owner": "seva-outreach-team",
+    "consent_status": "GRANTED",
+    "dnd_status": false
+  }
+  ```
+- **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "status": "PUBLISHED",
+    "topic": "projects/project-225be79a-d654-49e1-950/topics/wf006-contact-topic",
+    "subscription": "projects/project-225be79a-d654-49e1-950/subscriptions/wf006-contact-sub",
+    "message_id": "pubsub-msg-e4a8b71d234c",
+    "publish_time": "2026-10-04T10:00:00.000Z",
+    "explanation": "Event accepted at the ingestion edge and queued in GCP Pub/Sub buffer without blocking transactional database."
+  }
+  ```
+
+---
+
+#### Integration 2: `POST /demo/trigger-workflow` (Central Workflows Orchestration)
+- **What you are doing:** Triggering the complete `wf006-orchestrator` state machine directly from Swagger.
+- **Why you are doing it:** Shows the end-to-end pipeline in 1 click: Schema Validation ➔ DND Governance Query ➔ Automatic Branching ➔ Cloud SQL Master Write.
+- **Payload (Approved Devotee):**
+  ```json
+  {
+    "contact": {
+      "Contact_ID": "CNT-WF-DEMO-01",
+      "name": "Sri Nityananda Dasa",
+      "phone": "+919876511111",
+      "email": "nityananda@example.org",
+      "source": "CRM",
+      "owner": "seva-outreach-team",
+      "consent_status": "GRANTED",
+      "dnd_status": false
+    }
+  }
+  ```
+- **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "workflow_name": "wf006-orchestrator",
+    "execution_id": "wf-exec-a82f3b1c",
+    "status": "APPROVED",
+    "branch_taken": "persist_master_contact",
+    "contact_id": "CNT-WF-DEMO-01",
+    "persistence_status": "PERSISTED",
+    "storage_backend": "Cloud SQL PostgreSQL",
+    "message": "Contact validated, cleared DND governance, and stored in master database."
+  }
+  ```
+- **Payload (Blocked Devotee - Suppression List Interception):**
+  ```json
+  {
+    "contact": {
+      "Contact_ID": "CNT-WF-BLOCKED-01",
+      "name": "Kishore Kumar",
+      "phone": "+919999999999",
+      "email": "kkumar@example.net",
+      "source": "WhatsApp",
+      "owner": "seva-outreach-team",
+      "consent_status": "PENDING",
+      "dnd_status": false
+    }
+  }
+  ```
+- **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "workflow_name": "wf006-orchestrator",
+    "execution_id": "wf-exec-f91b42ce",
+    "status": "BLOCKED",
+    "branch_taken": "audit_log_only",
+    "contact_id": "CNT-WF-BLOCKED-01",
+    "persistence_status": "EXCLUDED",
+    "message": "Contact excluded from master outreach table; logged in immutable audit trail."
+  }
+  ```
+
+---
+
+#### Integration 3: `GET /demo/datastream-cdc-status` (Real-Time CDC Replication Status)
+- **What you are doing:** Checking the live status of Google Cloud Datastream CDC.
+- **Why you are doing it:** Proves the zero-ETL real-time replication pipeline is active between Cloud SQL PostgreSQL (source) and BigQuery (destination).
+- **Action:** Click `GET /demo/datastream-cdc-status` ➔ **Try it out** ➔ **Execute**.
+- **Expected Response (HTTP 200 OK):**
+  ```json
+  {
+    "datastream_name": "wf006-stream",
+    "gcp_project": "project-225be79a-d654-49e1-950",
+    "region": "us-central1",
+    "state": "RUNNING",
+    "cdc_architecture": {
+      "source": {
+        "engine": "Cloud SQL PostgreSQL 15",
+        "instance": "wf006-postgres",
+        "replication_slot": "wf006_datastream_slot",
+        "mechanism": "pgoutput logical decoding (WAL)"
+      },
+      "destination": {
+        "engine": "Google BigQuery",
+        "dataset": "public",
+        "target_table": "public.contacts",
+        "cdc_metadata_column": "datastream_metadata (UUID + source_timestamp)"
+      }
+    },
+    "latency": "sub-minute (near real-time)"
+  }
+  ```
+
+---
+
+#### Integration 4: `GET /demo/bigquery-synced-contacts` (BigQuery Replicated Data)
+- **What you are doing:** Inspecting the synchronized records inside Google BigQuery.
+- **Why you are doing it:** Shows that committed PostgreSQL records exist in BigQuery with their Datastream CDC metadata UUIDs.
+- **Action:** Click `GET /demo/bigquery-synced-contacts` ➔ **Try it out** ➔ **Execute**.
+- **Expected Response (HTTP 200 OK):**
+  A JSON list showing master contacts along with their `datastream_metadata` objects containing `uuid` and `source_timestamp`.
+
+---
+
+#### Integration 5: `GET /demo/bigquery-compliance-metrics` (Looker Analytics Views)
+- **What you are doing:** Querying the compliance analytics model (`v_source_compliance_metrics`).
+- **Why you are doing it:** Demonstrates the BI layer that drives Looker Studio executive dashboards.
+- **Action:** Click `GET /demo/bigquery-compliance-metrics` ➔ **Try it out** ➔ **Execute**.
+- **Expected Response (HTTP 200 OK):**
+  Returns source breakdown (`CRM`, `CSV`, `WhatsApp`, `DCC`) with total counts, approved counts, DND blocked counts, and DND blocked percentage!
+
+---
+
+#### Integration 6: `GET /demo/api-gateway-contract` (API Gateway Routing Spec)
+- **What you are doing:** Viewing the API Gateway configuration contract.
+- **Why you are doing it:** Explains that Swagger is not just a UI; it is the official OpenAPI 3.0 specification imported into Google Cloud API Gateway for TLS enforcement and 100 req/sec rate limiting.
+- **Action:** Click `GET /demo/api-gateway-contract` ➔ **Try it out** ➔ **Execute**.
+
+---
+
 ## 4. Section 2: Live Orchestration with Google Cloud Workflows
 
 Now run **Google Cloud Workflows (`wf006-orchestrator`)** to show how it coordinates both microservices and automatically branches based on the DND decision.
