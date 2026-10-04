@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import time
 import base64
 import sqlite3
 import logging
@@ -688,6 +689,10 @@ def handle_pubsub_push(envelope: PubSubPushEnvelope):
         payload_dict = json.loads(raw_bytes.decode("utf-8"))
         logger.info(f"Received Pub/Sub Push for messageId={envelope.message.messageId}: {payload_dict}")
         
+        # Intentional 2-second buffer window so message is visibly held in Pub/Sub queue during demos
+        logger.info("Buffering in Pub/Sub queue for 2 seconds before downstream orchestration...")
+        time.sleep(2)
+
         # Extract contact record
         contact_data = payload_dict.get("contact", payload_dict)
         contact = ContactRecord(**contact_data)
